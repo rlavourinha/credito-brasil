@@ -11,7 +11,7 @@ from pathlib import Path
 RAIZ = Path(__file__).parent
 D = json.load(open(RAIZ / "_dados.json", encoding="utf-8"))
 
-VERSAO = "1.1"
+VERSAO = "1.2"
 HOJE = dt.date.today().strftime("%d/%m/%Y")
 
 # ── util de série ──────────────────────────────────────────────────────────────
@@ -292,6 +292,14 @@ def duo(a, b):
 S1, S2, S3, MU = "var(--s1)", "var(--s2)", "var(--s3)", "var(--muted)"
 
 # valores correntes p/ texto
+MES_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
+DIA_PT = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"]
+_pn = D["proxima_nota"]
+_pd = dt.date.fromisoformat(_pn["data"])
+_ult_a, _ult_m = map(int, D["inad_pf_sfn"][-1][0].split("-"))
+_pc_m, _pc_a = (_ult_m % 12) + 1, _ult_a + (1 if _ult_m == 12 else 0)
+PROX_COMP = f"{MES_PT[_pc_m-1]}/{_pc_a % 100}"
+PROX_NOTA = f"{'' if _pn['confirmada'] else '~'}{DIA_PT[_pd.weekday()]} {_pd:%d/%m} · {_pn['hora']}"
 ULT = D["inad_pf_sfn"][-1][0]                     # 2026-07
 ult_rot = "jul/26"
 saldo = val("saldo_total")
@@ -310,6 +318,11 @@ SLIDES.append(f"""
     <div class="tile"><span class="n" style="color:var(--s1)">{_fmt(inad,2)}%</span><span class="l">inadimplência PF · recorde da série</span></div>
     <div class="tile"><span class="n">{_fmt(comp,1)}%</span><span class="l">renda comprometida · recorde</span></div>
     <div class="tile"><span class="n">{_fmt(dsr,1)}%</span><span class="l">DSR privado (BIS) · 2º maior do mundo</span></div>
+  </div>
+  <div class="chips2" style="margin-top:14px">
+    <span class="chip2">📅 <b>próxima nota do BCB:</b> {PROX_NOTA} · competência {PROX_COMP}</span>
+    <span class="chip2"><b>IF.data 3T26:</b> ~dez/26</span>
+    <span class="chip2"><b>BIS 2026-Q2:</b> ~dez/26</span>
   </div>
   <div class="chips2">
     <span class="chip2"><b>1</b> · o sistema</span><span class="chip2"><b>2</b> · a inadimplência recorde</span>
@@ -574,7 +587,7 @@ corpo = f'<div class="cards3" style="grid-template-columns:repeat(3,1fr)">{cards
 corpo = f'<div class="cards3">{cards}</div>'
 sec("síntese · as 5 teses", "O que os dados sustentam.", corpo,
     verde=("Preço recorde, dois choques de safra e a onda de baixas em curso — o pico do índice fica para a virada 2026/27, se o antecedente confirmar.",
-           f"Próxima nota do BCB: ~29/09 (competência ago/26). Dashboard vivo: dashboard-bcb · v{VERSAO} · {HOJE}"))
+           f"Próxima nota do BCB: {PROX_NOTA} (competência {PROX_COMP}). Dashboard vivo: dashboard-bcb · v{VERSAO} · {HOJE}"))
 
 # ── template ──────────────────────────────────────────────────────────────────
 TPL = open(RAIZ / "_template.html", encoding="utf-8").read()

@@ -137,6 +137,12 @@ D["hh_gdp"] = {r["pais"]: round(float(r["v"]), 1)
 D["icc_decomp"] = {"ref": intl.DECOMP_ICC_BR["ref"],
                    "comp": [[n, float(v)] for n, v, _ in intl.DECOMP_ICC_BR["componentes"]]}
 
+print("Cronograma...")
+import cronograma
+_a, _m = map(int, D["inad_pf_sfn"][-1][0].split("-"))
+_r = cronograma.proxima_divulgacao(_a, _m)
+D["proxima_nota"] = {"data": _r["data"].isoformat(), "confirmada": _r["confirmada"], "hora": _r["hora"]}
+
 with open(OUT, "w", encoding="utf-8") as f:
     json.dump(D, f, ensure_ascii=False)
 print(f"OK -> {OUT.name}: {len(D)} chaves")
