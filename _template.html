@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crédito no Brasil — o ciclo de 2025-26</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,450;0,9..144,550;0,9..144,650;1,9..144,450;1,9..144,550;1,9..144,650&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface-1: #fcfcfb;
+    --ink-1: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --baseline: #c3c2b7; --ring: rgba(11,11,11,0.10);
+    --s1: #1b4f72; --s2: #c0392b; --s3: #a07d1c;
+    --chip-bg: #f0efec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface-1: #1a1a19;
+      --ink-1: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --baseline: #383835; --ring: rgba(255,255,255,0.10);
+      --s1: #5b8fc9; --s2: #d94f6e; --s3: #b1892b;
+      --chip-bg: #262624;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface-1: #1a1a19;
+    --ink-1: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --baseline: #383835; --ring: rgba(255,255,255,0.10);
+    --s1: #5b8fc9; --s2: #d94f6e; --s3: #b1892b;
+    --chip-bg: #262624;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink-1);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; padding: 22px 20px 0; overflow: hidden; }
+  .wrap { max-width: 1240px; margin: 0 auto; }
+  header.top { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  h1 { font-size: 21px; margin: 0; }
+  .chip { font-size: 11px; color: var(--ink-2); background: var(--chip-bg);
+    border: 1px solid var(--ring); border-radius: 999px; padding: 3px 10px; }
+  a.chip { text-decoration: none; }
+
+  .deck { height: calc(100vh - 72px); overflow-y: auto; scroll-snap-type: y mandatory; scrollbar-width: none; }
+  .deck::-webkit-scrollbar { display: none; }
+  .slide { min-height: 100%; scroll-snap-align: start; display: flex; align-items: center; padding: 10px 6px 24px; position: relative; }
+  .slidenum { position: absolute; bottom: 9px; right: 16px; font-size: 10.5px; color: var(--muted);
+    opacity: .65; letter-spacing: .05em; font-variant-numeric: tabular-nums; pointer-events: none; }
+  .sl-in { max-width: 1020px; margin: 0 auto; width: 100%;
+           opacity: 0; transform: translateY(22px);
+           transition: opacity .75s cubic-bezier(.2,.7,.2,1), transform .75s cubic-bezier(.2,.7,.2,1); }
+  .slide.vis .sl-in { opacity: 1; transform: none; }
+  .kick { font-size: 11.5px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--s1); margin: 0 0 6px; }
+  .head-xl { font-family: "Fraunces", Georgia, serif; font-weight: 550; font-size: clamp(28px, 3.7vw, 46px);
+             line-height: 1.07; letter-spacing: -0.01em; margin: 0 0 6px; }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 30px 0 8px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--ring); border-radius: 16px; padding: 18px 20px 14px; }
+  .tile .n { display: block; font-family: "Fraunces", Georgia, serif; font-size: clamp(24px, 2.7vw, 36px); font-weight: 550; }
+  .tile .l { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+  .viz { margin-top: 8px; }
+  .viz svg { width: 100%; height: auto; display: block; }
+  .axq { font-size: 12px; fill: var(--muted); }
+  .blab { font-size: 14px; font-weight: 650; fill: var(--ink-1); font-variant-numeric: tabular-nums; }
+  .ann { font-size: 12.5px; font-weight: 600; fill: var(--ink-1); }
+  .gtit { font-family: "Fraunces", Georgia, serif; font-size: 19px; font-weight: 600; fill: var(--ink-1); letter-spacing: .002em; }
+  .gsub { font-size: 11px; fill: var(--muted); }
+  .sl-nota { font-size: 10.5px; line-height: 1.45; color: var(--muted); margin: 5px 2px 0; }
+  .ticker-hero { font-family: "Fraunces", Georgia, serif; font-size: clamp(64px, 11vw, 120px); font-weight: 620;
+    color: var(--s1); letter-spacing: -0.015em; line-height: .95; margin: 6px 0 10px; }
+  .ticker-hero small { display: block; font-family: inherit; font-size: clamp(15px, 2vw, 19px); font-weight: 500;
+    color: var(--ink-2); letter-spacing: .01em; margin-top: 10px; }
+  .byline { margin-top: 30px; padding-top: 14px; border-top: 1px solid var(--ring); font-size: 13px; color: var(--muted); }
+  .byline b { color: var(--ink-1); font-weight: 650; }
+  .fwgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 14px; }
+  @media (max-width: 760px) { .fwgrid { grid-template-columns: 1fr; } }
+  .chips2 { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+  .chip2 { background: var(--chip-bg); border: 1px solid var(--ring); border-radius: 999px; padding: 9px 16px; font-size: 13.5px; color: var(--ink-2); }
+  .chip2 b { color: var(--ink-1); }
+  .cards3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 26px; }
+  .c3 { background: var(--surface-1); border: 1px solid var(--ring); border-radius: 16px; padding: 13px 15px; font-size: 12.4px; line-height: 1.38; color: var(--ink-2); }
+  .c3 b { color: var(--ink-1); display: inline; }
+  .c3n { display: block; font-family: "Fraunces", Georgia, serif; font-size: 23px; color: var(--s1); margin-bottom: 5px; }
+  .dots { position: fixed; right: 16px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 9px; z-index: 5; }
+  .dots a { width: 8px; height: 8px; border-radius: 50%; background: var(--grid); border: 1px solid var(--ring); cursor: pointer; }
+  .dots a.on { background: var(--s1); border-color: var(--s1); }
+  @media (max-width: 760px) {
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .cards3 { grid-template-columns: 1fr; }
+    .dots { display: none; }
+    .deck { height: calc(100vh - 96px); }
+  }
+  .deck, .deck *, .deck svg text { font-family: "Fraunces", Georgia, serif; font-style: italic; }
+  .deck { font-weight: 450; }
+  .deck b, .deck .navlabel { font-weight: 650; }
+  .sl-output { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin: 7px 2px 0; padding: 7px 14px;
+    background: rgba(46,125,50,.08); border: 1px solid rgba(46,125,50,.45); border-left: 5px solid #2e7d32; border-radius: 12px; }
+  .sl-output .out-tag { font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #fff; background: #2e7d32; padding: 3px 10px; border-radius: 999px; }
+  .sl-output .out-msg { font-family: "Fraunces", Georgia, serif; font-size: 19px; font-weight: 650; color: #1b5e20; letter-spacing: -.005em; }
+  @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .sl-output .out-msg { color: #81c784; } }
+  :root[data-theme="dark"] .sl-output .out-msg { color: #81c784; }
+  .sl-output .out-sub { font-size: 12.5px; color: var(--ink-2); flex: 1 1 260px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Crédito no Brasil — o ciclo de 2025-26</h1>
+    <span class="chip">%%CHIP%%</span>
+    <a class="chip" href="https://dashboard-bcb-atnnklfhjhjocsrcr7nwae.streamlit.app" target="_blank" rel="noopener">dashboard vivo (Streamlit) →</a>
+  </header>
+
+<div class="deck" id="deck">
+%%SLIDES%%
+</div>
+<div class="dots" id="dots"></div>
+</div>
+<script>
+  (function () {
+    var deck = document.getElementById("deck");
+    var slides = Array.prototype.slice.call(deck.querySelectorAll(".slide"));
+    var dots = document.getElementById("dots");
+    slides.forEach(function (sl) {
+      var a = document.createElement("a");
+      a.addEventListener("click", function () { sl.scrollIntoView({ behavior: "smooth" }); });
+      dots.appendChild(a);
+    });
+    var das = Array.prototype.slice.call(dots.children);
+    var obs = new IntersectionObserver(function (es) {
+      es.forEach(function (e) {
+        if (e.isIntersecting) {
+          e.target.classList.add("vis");
+          var i = slides.indexOf(e.target);
+          das.forEach(function (d, j) { d.classList.toggle("on", j === i); });
+        }
+      });
+    }, { root: deck, threshold: [0.2, 0.55] });
+    slides.forEach(function (s) { obs.observe(s); });
+    document.addEventListener("keydown", function (e) {
+      var cur = slides.findIndex(function (s) { return s.classList.contains("vis") && Math.abs(s.getBoundingClientRect().top - deck.getBoundingClientRect().top) < deck.clientHeight / 2; });
+      if (cur < 0) cur = 0;
+      if (e.key === "ArrowDown" || e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") {
+        e.preventDefault(); if (cur < slides.length - 1) slides[cur + 1].scrollIntoView({ behavior: "smooth" });
+      } else if (e.key === "ArrowUp" || e.key === "ArrowLeft" || e.key === "PageUp") {
+        e.preventDefault(); if (cur > 0) slides[cur - 1].scrollIntoView({ behavior: "smooth" });
+      }
+    });
+  })();
+  (function () {
+    var sl = document.querySelectorAll('.deck .slide');
+    sl.forEach(function (s, i) {
+      var d = document.createElement('div');
+      d.className = 'slidenum';
+      d.textContent = (i + 1) + ' / ' + sl.length;
+      s.appendChild(d);
+    });
+  })();
+  (function () {
+    function ajusta() {
+      var deck = document.getElementById('deck'); if (!deck) return;
+      deck.querySelectorAll('.slide').forEach(function (s) {
+        var inn = s.querySelector('.sl-in'); if (!inn) return;
+        s.style.alignItems = (inn.scrollHeight + 44 > deck.clientHeight) ? 'flex-start' : 'center';
+      });
+    }
+    window.addEventListener('load', ajusta); window.addEventListener('resize', ajusta); setTimeout(ajusta, 900);
+  })();
+  (function () {
+    var deck = document.getElementById('deck'); if (!deck) return;
+    var slides = Array.prototype.slice.call(deck.querySelectorAll('.slide'));
+    function alvo(n) {
+      var rx = new RegExp('^\\s*parte\\s*' + n + '\\b', 'i');
+      for (var i = 0; i < slides.length; i++) { var k = slides[i].querySelector('.kick'); if (k && rx.test(k.textContent)) return slides[i]; }
+      return null;
+    }
+    document.querySelectorAll('#sl0 .chip2').forEach(function (c) {
+      var b = c.querySelector('b'); var n = b ? parseInt(b.textContent, 10) : NaN; var s = isNaN(n) ? null : alvo(n);
+      if (!s) return;
+      c.setAttribute('role', 'button'); c.setAttribute('tabindex', '0'); c.style.cursor = 'pointer';
+      c.addEventListener('click', function () { s.scrollIntoView({ behavior: 'smooth' }); });
+    });
+  })();
+</script>
+</body>
+</html>
