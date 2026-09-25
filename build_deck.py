@@ -11,7 +11,7 @@ from pathlib import Path
 RAIZ = Path(__file__).parent
 D = json.load(open(RAIZ / "_dados.json", encoding="utf-8"))
 
-VERSAO = "1.3"
+VERSAO = "1.4"
 HOJE = dt.date.today().strftime("%d/%m/%Y")
 
 # ── util de série ──────────────────────────────────────────────────────────────
@@ -196,7 +196,16 @@ def barras_h(itens, W=980, H=None, title="", sub="", unit="", dec=1, destaque=No
     top = 56
     H = H or top + n * lh + 16
     x0, x1 = 205, W - 90
-    vmax = max(v for _, v, *_ in itens)
+    vals = [0.0 if abs(v) < 0.005 else v for _, v, *_ in itens]
+    itens = [(it[0], vv, *it[2:]) for it, vv in zip(itens, vals)]
+    vmax = max(vals)
+    vmin = min(0.0, min(vals))
+    if vmin < 0:
+        # folga à esquerda p/ o rótulo do valor negativo: proporcional + piso fixo
+        # (~80px SVG), senão um negativo ínfimo numa escala grande cola na categoria
+        vmin = min(vmin * 1.9, -0.13 * vmax)
+    span = (vmax - vmin) or 1
+    xz = x0 + (0 - vmin) / span * (x1 - x0)
     g = [f'<text x="12" y="18" class="gtit">{title}</text>']
     if sub:
         g.append(f'<text x="12" y="34" class="gsub">{sub}</text>')
@@ -204,13 +213,20 @@ def barras_h(itens, W=980, H=None, title="", sub="", unit="", dec=1, destaque=No
         rot, v = it[0], it[1]
         cor = it[2] if len(it) > 2 and it[2] else "var(--grid)"
         y = top + i * lh
-        w = (x1 - x0) * v / vmax
+        w = abs(v) / span * (x1 - x0)
+        bx = xz if v >= 0 else xz - w
         eh = destaque and destaque in rot
         fs = "10px" if n > 24 else ("11.5px" if n > 16 else "12.5px")
         peso = 750 if eh else 500
         g.append(f'<text x="{x0-8}" y="{y+lh*0.66:.1f}" text-anchor="end" style="font-size:{fs};font-weight:{peso}" fill="{"var(--s1)" if eh else "var(--ink-2)"}">{rot}</text>')
-        g.append(f'<rect x="{x0}" y="{y+2.5}" width="{w:.1f}" height="{bh}" rx="3" fill="{"var(--s1)" if eh else cor}" opacity="{1 if eh else .8}"/>')
-        g.append(f'<text x="{x0+w+7:.1f}" y="{y+lh*0.66:.1f}" style="font-size:{fs};font-weight:{700 if eh else 550}" fill="{"var(--s1)" if eh else "var(--ink-1)"}">{_fmt(v,dec)}{unit}</text>')
+        g.append(f'<rect x="{bx:.1f}" y="{y+2.5}" width="{w:.1f}" height="{bh}" rx="3" fill="{"var(--s1)" if eh else cor}" opacity="{1 if eh else .8}"/>')
+        anc = "" if v >= 0 else ' text-anchor="end"'
+        vx = xz + w + 7 if v >= 0 else xz - w - 7
+        if v == 0:
+            anc, vx = "", xz + 7
+        g.append(f'<text x="{vx:.1f}" y="{y+lh*0.66:.1f}"{anc} style="font-size:{fs};font-weight:{700 if eh else 550}" fill="{"var(--s1)" if eh else "var(--ink-1)"}">{_fmt(v,dec)}{unit}</text>')
+    if vmin < 0:
+        g.append(f'<line x1="{xz:.1f}" y1="{top-4}" x2="{xz:.1f}" y2="{top + n * lh + 4:.1f}" stroke="var(--baseline)"/>')
     return f'<svg viewBox="0 0 {W} {H}">' + "".join(g) + "</svg>"
 
 
@@ -405,20 +421,30 @@ sec("parte 2 · a inadimplência recorde", "Sem agro e consignado novo, ainda n�
            "O recorde do agregado = core pressionado + dois choques concentrados."),
     nota="Reconstrução própria sobre SGS (npl.py do dashboard-bcb). Consignado privado ≠ consignado INSS/público.")
 
-# 8 ─ contribuições
-c = D["contrib_12m"]
-ordem = [(k, v) for k, v in c.items() if not k.startswith("Δ")]
-ordem.sort(key=lambda t: -t[1])
-tot = c.get("Δ Inadimplência PF (12m)", sum(v for _, v in ordem))
-itens = [(f"{k.split(' ', 1)[-1] if k[0] in '🌾💼💳👤🏧🚗🏠' else k}", round(v, 2),
-          S1 if v == max(v2 for _, v2 in ordem) else None) for k, v in ordem]
-g = barras_h([(r, v, cr) for r, v, cr in itens if v >= 0.01], W=980,
-             title=f"Quem explica os +{_fmt(tot,2)} p.p. em 12 meses (contribuição, p.p.)",
-             sub=f"decomposição exata do Δ12m do índice PF · {ult_rot} · Demais PF ≈ 0 (omitido)", unit=" p.p.", dec=2, destaque="Rural")
-sec("parte 2 · a inadimplência recorde", "Metade da alta vem de dois bolsos.", viz(g),
+# 8 ─ contribuições por horizonte (1/3/6/9/12 meses)
+def _slide8_var(n):
+    c = D["contrib_n"][str(n)]
+    ordem = sorted(((k, v) for k, v in c.items() if k != "Δ"), key=lambda t: -t[1])
+    lider = ordem[0][0]
+    itens = [(k.split(" ", 1)[-1] if k[0] in "🌾💼💳👤🏧🚗🏠" else k, round(v, 2),
+              S1 if k == lider else None) for k, v in ordem]
+    tot = c["Δ"]
+    return barras_h(itens, W=980,
+                    title=f"Quem explica os {'+' if tot >= 0 else '−'}{_fmt(abs(tot),2)} p.p. em "
+                          f"{n} {'mês' if n == 1 else 'meses'} (contribuição, p.p.)",
+                    sub=f"decomposição exata do Δ{n}m do índice PF · {ult_rot}",
+                    unit=" p.p.", dec=2, destaque=itens[0][0])
+
+_v8, _b8 = [], []
+for n in (1, 3, 6, 9, 12):
+    on = n == 12
+    _v8.append(f'<div class="winvar" data-win="{n}m"{"" if on else chr(32) + "style=" + chr(34) + "display:none" + chr(34)}>{viz(_slide8_var(n))}</div>')
+    _b8.append(f'<button data-win="{n}m"{chr(32) + "class=" + chr(34) + "on" + chr(34) if on else ""}>{n}m</button>')
+g = f'<div class="wingrp"><div class="seg winseg">{"".join(_b8)}</div>{"".join(_v8)}</div>'
+sec("parte 2 · a inadimplência recorde", "Metade da alta vem de dois bolsos.", g,
     verde=("Rural (+0,48) e consignado privado (+0,18): 14% da carteira explicando ~45% da alta do estoque inadimplente.",
-           "O resto é a máquina cara de sempre — cartão, pessoal, cheque — subindo devagar."),
-    nota="Decomposição: Δinad = Σ [NPL_i(t)/S(t) − NPL_i(t−12)/S(t−12)] — soma exatamente o Δ do índice.")
+           "E a ponta avisa: no horizonte de 6 meses o consignado novo (+0,14) já supera o rural (+0,11) na liderança da piora."),
+    nota="Decomposição: Δinad = Σ [NPL_i(t)/S(t) − NPL_i(t−N)/S(t−N)] — a soma fecha exatamente o Δ do índice em cada horizonte. Reconstrução própria sobre SGS.")
 
 # 9 ─ rural
 ga = rlinhas([{"pts": D["inad_rural"], "cor": S1, "w": 2.4, "rot": "inad", "dec": 2}],

@@ -108,6 +108,17 @@ contr = npl.contribuicoes_12m(df).set_index("periodo").iloc[-1].dropna()
 D["contrib_12m"] = {k: round(float(v), 3) for k, v in contr.items()}
 D["contrib_ref"] = df["periodo"].max().strftime("%Y-%m")
 
+# decomposição multi-horizonte (slide 8): Δ do índice em 1/3/6/9/12 meses
+def _contribs_n(n):
+    s_tot = df["Saldo|Total PF"]
+    out = {}
+    for nome in list(npl.TIPOS) + ["Demais PF"]:
+        razao = df[f"NPL|{nome}"] / s_tot * 100
+        out[nome] = round(float(razao.iloc[-1] - razao.iloc[-1 - n]), 3)
+    out["Δ"] = round(float(df["Inad|Total PF"].iloc[-1] - df["Inad|Total PF"].iloc[-1 - n]), 3)
+    return out
+D["contrib_n"] = {str(n): _contribs_n(n) for n in (1, 3, 6, 9, 12)}
+
 print("IF.data (baixas)...")
 fi = ifdata.carregar().set_index("periodo").sort_index()
 inad_sfn = dl.carregar_sgs(21082, "v", inicio="01/01/2015").set_index("periodo")["v"]
