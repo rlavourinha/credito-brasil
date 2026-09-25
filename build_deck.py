@@ -11,7 +11,7 @@ from pathlib import Path
 RAIZ = Path(__file__).parent
 D = json.load(open(RAIZ / "_dados.json", encoding="utf-8"))
 
-VERSAO = "1.2"
+VERSAO = "1.3"
 HOJE = dt.date.today().strftime("%d/%m/%Y")
 
 # ── util de série ──────────────────────────────────────────────────────────────
@@ -167,7 +167,8 @@ def linhas(series, W=980, H=430, title="", sub="", unit="", ylim=None,
         pts = s["pts"]
         poly = " ".join(f"{X(p):.1f},{Y(v):.1f}" for p, v in pts)
         dash = f' stroke-dasharray="{s["dash"]}"' if s.get("dash") else ""
-        g.append(f'<polyline points="{poly}" fill="none" stroke="{s["cor"]}" stroke-width="{s.get("w",2.2)}"{dash}/>')
+        ttat = f' data-rot="{s["rot"]}" data-dec="{s.get("dec",1)}"' if "rot" in s else ""
+        g.append(f'<polyline points="{poly}" fill="none" stroke="{s["cor"]}" stroke-width="{s.get("w",2.2)}"{dash}{ttat}/>')
         px, pv = pts[-1]
         g.append(f'<circle cx="{X(px):.1f}" cy="{Y(pv):.1f}" r="3.2" fill="{s["cor"]}"/>')
         if s.get("rot"):
@@ -183,7 +184,8 @@ def linhas(series, W=980, H=430, title="", sub="", unit="", ylim=None,
         g.append(f'<circle cx="{ax:.1f}" cy="{ay:.1f}" r="3.4" fill="none" stroke="{a.get("cor","var(--ink-1)")}" stroke-width="1.4"/>')
         anch = a.get("anchor", "middle")
         g.append(f'<text x="{ax+a.get("dx",0):.1f}" y="{ay+a.get("dy",-10):.1f}" class="ann" fill="{a.get("cor","var(--ink-1)")}" text-anchor="{anch}">{a["t"]}</text>')
-    return f'<svg viewBox="0 0 {W} {H}">' + "".join(g) + "</svg>"
+    geo = f"{x0},{x1},{o0},{o1},{top},{bot},{vmin},{vmax},{unit}"
+    return f'<svg viewBox="0 0 {W} {H}" data-geo="{geo}">' + "".join(g) + "</svg>"
 
 
 def barras_h(itens, W=980, H=None, title="", sub="", unit="", dec=1, destaque=None):
@@ -230,8 +232,9 @@ def barras_tri(pts, W=980, H=400, title="", sub="", unit="", destaque_ym=None, n
     g.append(f'<line x1="{x0}" y1="{bot}" x2="{x1}" y2="{bot}" stroke="var(--baseline)"/>')
     for i, (p, v) in enumerate(pts):
         eh = p == destaque_ym
+        tri_rot = f"{(int(p[5:7]) + 2) // 3}T{p[2:4]} · {_fmt(v, 1)}{unit}"
         g.append(f'<rect x="{X(i)-bw/2:.1f}" y="{Y(v):.1f}" width="{bw:.1f}" height="{bot-Y(v):.1f}" rx="2" '
-                 f'fill="{"var(--s1)" if eh else "var(--grid)"}" opacity="{1 if eh else .95}"/>')
+                 f'fill="{"var(--s1)" if eh else "var(--grid)"}" opacity="{1 if eh else .95}" data-tt="{tri_rot}"/>')
         ano_novo = i == 0 or pts[i - 1][0][:4] != p[:4]
         if ano_novo and (len(pts) <= 24 or int(p[:4]) % 2 == 1):
             g.append(f'<text x="{X(i):.1f}" y="{bot+17}" class="axq" text-anchor="middle" opacity=".75">{p[:4]}</text>')
@@ -261,7 +264,7 @@ def dispersao(itens, W=980, H=390, title="", sub="", xl="", abaixo=()):
         g.append(f'<text x="{X(t):.1f}" y="{bot+18}" class="axq" text-anchor="middle">{_fmt(t)}</text>')
     g.append(f'<text x="{(x0+x1)/2:.0f}" y="{H-4}" class="gsub" text-anchor="middle">{xl}</text>')
     for rot, x, y, eh in itens:
-        g.append(f'<circle cx="{X(x):.1f}" cy="{Y(y):.1f}" r="{7 if eh else 4.5}" fill="{"var(--s1)" if eh else "var(--s2)"}" opacity="{1 if eh else .5}"/>')
+        g.append(f'<circle cx="{X(x):.1f}" cy="{Y(y):.1f}" r="{7 if eh else 4.5}" fill="{"var(--s1)" if eh else "var(--s2)"}" opacity="{1 if eh else .5}" data-tt="{rot} · dívida {_fmt(x,0)}% do PIB · serviço {_fmt(y,1)}% da renda"/>')
         if eh or rot in ("Hong Kong", "Noruega", "Austrália", "Holanda", "EUA", "Turquia", "Coreia", "Suíça", "Canadá", "Índia", "México", "Alemanha", "Japão", "Suécia"):
             dy = 16 if rot in abaixo else -10
             g.append(f'<text x="{X(x):.1f}" y="{Y(y)+dy:.1f}" class="ann" text-anchor="middle" fill="{"var(--s1)" if eh else "var(--ink-2)"}" style="font-size:{12.5 if eh else 10.5}px">{rot}</text>')

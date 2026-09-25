@@ -42,7 +42,37 @@ D["conc_pf"] = sgs(20633, 0.001)          # concessões PF R$ bi
 D["taxa_pf"] = sgs(20716)
 D["taxa_pj"] = sgs(20715)
 D["icc_pf"] = sgs(25353)
-D["selic"] = serie(dl.carregar_selic(2011).rename(columns={"Selic (% a.a.)": "v"}))
+# Selic: carregar_selic baixa em lotes anuais com except silencioso — um ano que
+# falhe vira buraco e o gráfico interpola uma rampa falsa. Valida e refaz com retry.
+def _selic_completa():
+    import ssl as _ssl, time as _t, urllib.request as _ur, json as _json
+    _ctx = _ssl.create_default_context(); _ctx.check_hostname = False; _ctx.verify_mode = _ssl.CERT_NONE
+    def _ano(ano, tent=4):
+        url = (f"https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados?formato=json"
+               f"&dataInicial=01%2F01%2F{ano}&dataFinal=31%2F12%2F{ano}")
+        for i in range(tent):
+            try:
+                req = _ur.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+                with _ur.urlopen(req, timeout=25, context=_ctx) as r:
+                    return _json.loads(r.read().decode("utf-8"))
+            except Exception as e:
+                if i == tent - 1:
+                    raise RuntimeError(f"Selic {ano} falhou após {tent} tentativas: {e}")
+                _t.sleep(1.5 * (i + 1))
+    import datetime as _dt
+    mensal = {}
+    for ano in range(2011, _dt.date.today().year + 1):
+        for x in _ano(ano):
+            _, m, a = x["data"].split("/")
+            mensal[f"{a}-{m}"] = float(x["valor"])
+    pts = [[k, mensal[k]] for k in sorted(mensal)]
+    osn = [int(k[:4]) * 12 + int(k[5:7]) for k, _ in pts]
+    buracos = [pts[i][0] for i in range(1, len(pts)) if osn[i] - osn[i - 1] != 1]
+    if buracos:
+        raise RuntimeError(f"Selic com meses faltando: {buracos}")
+    return pts
+
+D["selic"] = _selic_completa()
 
 print("SGS inadimplência / tomador...")
 D["inad_pf_sfn"] = sgs(21084)
