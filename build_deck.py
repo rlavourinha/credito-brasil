@@ -11,7 +11,7 @@ from pathlib import Path
 RAIZ = Path(__file__).parent
 D = json.load(open(RAIZ / "_dados.json", encoding="utf-8"))
 
-VERSAO = "1.4"
+VERSAO = "1.5"
 HOJE = dt.date.today().strftime("%d/%m/%Y")
 
 # ── util de série ──────────────────────────────────────────────────────────────
@@ -422,6 +422,23 @@ sec("parte 2 · a inadimplência recorde", "Sem agro e consignado novo, ainda n�
     nota="Reconstrução própria sobre SGS (npl.py do dashboard-bcb). Consignado privado ≠ consignado INSS/público.")
 
 # 8 ─ contribuições por horizonte (1/3/6/9/12 meses)
+def _tipico_n(n):
+    """Mediana histórica do ΔN terminando no MESMO mês do calendário que o dado
+    atual (2012+, ex-2020/21) — benchmark sazonal honesto p/ os horizontes curtos."""
+    s = dict(D["inad_pf_sfn"])
+    fim_m = int(ULT[5:7])
+    hist = []
+    # exclui pandemia E o ano anterior ao dado (já ciclo) — benchmark é a norma sazonal
+    for a in range(2012, int(ULT[:4]) - 1):
+        if 2020 <= a <= 2021:
+            continue
+        fim = f"{a}-{fim_m:02d}"
+        ini = ym_menos(fim, n)
+        if fim in s and ini in s:
+            hist.append(s[fim] - s[ini])
+    hist.sort()
+    return hist[len(hist) // 2] if hist else 0.0
+
 def _slide8_var(n):
     c = D["contrib_n"][str(n)]
     ordem = sorted(((k, v) for k, v in c.items() if k != "Δ"), key=lambda t: -t[1])
@@ -429,10 +446,13 @@ def _slide8_var(n):
     itens = [(k.split(" ", 1)[-1] if k[0] in "🌾💼💳👤🏧🚗🏠" else k, round(v, 2),
               S1 if k == lider else None) for k, v in ordem]
     tot = c["Δ"]
+    fim_bench = f"{(int(ULT[:4]) - 2) % 100:02d}"
     return barras_h(itens, W=980,
                     title=f"Quem explica os {'+' if tot >= 0 else '−'}{_fmt(abs(tot),2)} p.p. em "
                           f"{n} {'mês' if n == 1 else 'meses'} (contribuição, p.p.)",
-                    sub=f"decomposição exata do Δ{n}m do índice PF · {ult_rot}",
+                    sub=(f"decomposição exata do Δ{n}m do índice PF · {ult_rot} · "
+                         f"típico deste trecho do calendário (2012-{fim_bench}): {_tipico_n(n):+.2f} → "
+                         f"excesso: {tot - _tipico_n(n):+.2f}").replace(".", ","),
                     unit=" p.p.", dec=2, destaque=itens[0][0])
 
 _v8, _b8 = [], []
@@ -444,7 +464,9 @@ g = f'<div class="wingrp"><div class="seg winseg">{"".join(_b8)}</div>{"".join(_
 sec("parte 2 · a inadimplência recorde", "Metade da alta vem de dois bolsos.", g,
     verde=("Rural (+0,48) e consignado privado (+0,18): 14% da carteira explicando ~45% da alta do estoque inadimplente.",
            "E a ponta avisa: no horizonte de 6 meses o consignado novo (+0,14) já supera o rural (+0,11) na liderança da piora."),
-    nota="Decomposição: Δinad = Σ [NPL_i(t)/S(t) − NPL_i(t−N)/S(t−N)] — a soma fecha exatamente o Δ do índice em cada horizonte. Reconstrução própria sobre SGS.")
+    nota="Decomposição: Δinad = Σ [NPL_i(t)/S(t) − NPL_i(t−N)/S(t−N)] — a soma fecha o Δ do índice em cada horizonte. "
+         "Atenção à sazonalidade nos horizontes curtos: o índice tem limpeza semestral (baixas de jun/dez derrubam ~0,1 p.p.) e o rural segue o calendário da safra — "
+         "por isso cada corte traz o 'típico' do mesmo trecho do calendário; leia o excesso, não o número cru. Δ12m é imune por construção.")
 
 # 9 ─ rural
 ga = rlinhas([{"pts": D["inad_rural"], "cor": S1, "w": 2.4, "rot": "inad", "dec": 2}],
