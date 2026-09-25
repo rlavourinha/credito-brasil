@@ -11,7 +11,7 @@ from pathlib import Path
 RAIZ = Path(__file__).parent
 D = json.load(open(RAIZ / "_dados.json", encoding="utf-8"))
 
-VERSAO = "1.0"
+VERSAO = "1.1"
 HOJE = dt.date.today().strftime("%d/%m/%Y")
 
 # ── util de série ──────────────────────────────────────────────────────────────
@@ -47,6 +47,51 @@ def mm12(key):
 
 def desde(key, ini):
     return [p for p in D[key] if p[0] >= ini]
+
+# ── janelas de visualização (tudo / 5a / 2a) ──────────────────────────────────
+JANELAS = [("tudo", None, "tudo"), ("5a", 60, "5 anos"), ("2a", 24, "2 anos")]
+
+def ym_menos(ym, k):
+    o = _ord(ym) - k
+    a = (o - 1) // 12
+    return f"{a:04d}-{o - a * 12:02d}"
+
+def rlinhas(series, ann=None, band=None, ylim=None, **kw):
+    """Render adiável de linhas(): fn(meses|None) -> svg. Janela curta corta as
+    séries, filtra anotações fora dela e libera o Y para reescalar (detalhe da ponta)."""
+    def r(meses):
+        if meses is None:
+            return linhas(series, ann=ann, band=band, ylim=ylim, **kw)
+        ult = max(s["pts"][-1][0] for s in series if s["pts"])
+        ini = ym_menos(ult, meses - 1)
+        ss = [dict(s, pts=[p for p in s["pts"] if p[0] >= ini]) for s in series]
+        ss = [s for s in ss if len(s["pts"]) >= 2]
+        aa = [a for a in (ann or []) if a["ym"] >= ini] or None
+        bb = dict(band, pts=[p for p in band["pts"] if p[0] >= ini]) if band else None
+        return linhas(ss, ann=aa, band=bb, ylim=None, **kw)
+    return r
+
+def rbarras_tri(pts, **kw):
+    def r(meses):
+        pp = pts if meses is None else [p for p in pts if p[0] >= ym_menos(pts[-1][0], meses - 1)]
+        return barras_tri(pp, **kw)
+    return r
+
+def com_janelas(renders, layout):
+    """Pré-renderiza cada janela e monta o seletor; só a variante ativa fica visível."""
+    partes = []
+    for i, (key, meses, rot) in enumerate(JANELAS):
+        svgs = [r(meses) for r in renders]
+        style = "" if i == 0 else ' style="display:none"'
+        partes.append(f'<div class="winvar" data-win="{key}"{style}>{layout(svgs)}</div>')
+    seg = '<div class="seg winseg" role="group" aria-label="janela">' + "".join(
+        f'<button data-win="{k}"{" class=char_on" if i == 0 else ""}>{r}</button>'
+        for i, (k, m, r) in enumerate(JANELAS)) + "</div>"
+    seg = seg.replace("class=char_on", 'class="on"')
+    return f'<div class="wingrp">{seg}{"".join(partes)}</div>'
+
+def jan1(series, **kw):
+    return com_janelas([rlinhas(series, **kw)], lambda s: viz(s[0]))
 
 # ── helpers de gráfico (idioma do deck Cyrela) ────────────────────────────────
 def _ticks(vmin, vmax, alvo=5):
@@ -84,7 +129,7 @@ def linhas(series, W=980, H=430, title="", sub="", unit="", ylim=None,
     vmin, vmax = min(tudo), max(tudo)
     if ylim:
         vmin, vmax = ylim
-    tk = _ticks(vmin, vmax)
+    tk = _ticks(vmin, vmax, 4 if H < 260 else 5)
     vmin, vmax = tk[0], tk[-1]
     os_ = [_ord(p) for s in series for p, _ in s["pts"]]
     if band:
@@ -187,13 +232,15 @@ def barras_tri(pts, W=980, H=400, title="", sub="", unit="", destaque_ym=None, n
         eh = p == destaque_ym
         g.append(f'<rect x="{X(i)-bw/2:.1f}" y="{Y(v):.1f}" width="{bw:.1f}" height="{bot-Y(v):.1f}" rx="2" '
                  f'fill="{"var(--s1)" if eh else "var(--grid)"}" opacity="{1 if eh else .95}"/>')
-        if p.endswith("-03") and p[:4] in ("2015", "2017", "2019", "2021", "2023", "2025"):
+        ano_novo = i == 0 or pts[i - 1][0][:4] != p[:4]
+        if ano_novo and (len(pts) <= 24 or int(p[:4]) % 2 == 1):
             g.append(f'<text x="{X(i):.1f}" y="{bot+17}" class="axq" text-anchor="middle" opacity=".75">{p[:4]}</text>')
         if eh:
             g.append(f'<text x="{X(i):.1f}" y="{Y(v)-8:.1f}" class="blab" text-anchor="middle" fill="var(--s1)">{_fmt(v,1)}{unit}</text>')
     if nan_ym:
         i = next((j for j, (p, _) in enumerate(pts) if p > nan_ym), None)
-        g.append(f'<text x="{X(41):.1f}" y="{bot-6:.1f}" class="axq" text-anchor="middle" opacity=".8">*</text>')
+        if i:
+            g.append(f'<text x="{(X(i-1)+X(i))/2:.1f}" y="{bot-6:.1f}" class="axq" text-anchor="middle" opacity=".8">*</text>')
     return f'<svg viewBox="0 0 {W} {H}">' + "".join(g) + "</svg>"
 
 
@@ -273,39 +320,39 @@ SLIDES.append(f"""
 </div></section>""")
 
 # 2 ─ panorama: crescimento do estoque
-g = linhas([
+g = jan1([
     {"pts": serie_var12("saldo_total"), "cor": S1, "rot": "total", "dec": 1},
     {"pts": serie_var12("saldo_livre"), "cor": S2, "dash": "4 3", "rot": "livre", "dec": 1},
     {"pts": serie_var12("saldo_dir"), "cor": MU, "rot": "direcionado", "dec": 1},
 ], title="Crescimento do estoque de crédito (% em 12 meses)", sub="SGS 20539/20542/20593 · saldo total R$ %SALDO% bi em %ULT%".replace("%SALDO%", _fmt(saldo)).replace("%ULT%", ult_rot), unit="%", H=420)
-sec("parte 1 · o sistema", "O crédito não parou de crescer.", viz(g),
+sec("parte 1 · o sistema", "O crédito não parou de crescer.", g,
     verde=(f"+{_fmt(var12('saldo_total'),1)}% em 12 meses, com R$ {_fmt(saldo/1000,2)} tri de estoque — este não é um ciclo de escassez de crédito.",
            "É o denominador do índice de inadimplência: enquanto cresce ~10% a.a., dilui a taxa medida."),
     nota="Fonte: BCB/SGS. Var. % em 12m sobre o saldo nominal.")
 
 # 3 ─ concessões PF (real + MM12)
-g = linhas([
+g = jan1([
     {"pts": D["conc_pf"], "cor": MU, "w": 1.4, "rot": "real", "dec": 0},
     {"pts": mm12("conc_pf"), "cor": S1, "w": 2.6, "rot": "MM12", "dec": 0},
 ], title="Concessões de crédito PF (R$ bi/mês)", sub="SGS 20633 · número real (cinza) e média móvel 12m", H=410)
-sec("parte 1 · o sistema", "Originação em máxima histórica.", viz(g),
+sec("parte 1 · o sistema", "Originação em máxima histórica.", g,
     verde=(f"R$ {_fmt(val('conc_pf'))} bi concedidos a PF em {ult_rot} — topo da série.",
            "Safra nova entra limpa no índice; o custo dela aparece 12-24 meses depois."),
     nota="Fonte: BCB/SGS. Concessões nominais mensais; MM12 pela regra da casa (nunca MM3).")
 
 # 4 ─ preço
-g = linhas([
+g = jan1([
     {"pts": D["taxa_pf"], "cor": S1, "rot": "taxa PF", "dec": 1},
     {"pts": D["taxa_pj"], "cor": S2, "dash": "4 3", "rot": "taxa PJ", "dec": 1},
     {"pts": D["selic"], "cor": MU, "rot": "Selic", "dec": 2},
 ], title="O preço do crédito (% a.a.)", sub="SGS 20716/20715 (taxas médias das concessões) e Selic meta", unit="%", H=390)
-sec("parte 1 · o sistema", "A Selic cede. A taxa ao tomador, quase nada.", viz(g),
+sec("parte 1 · o sistema", "A Selic cede. A taxa ao tomador, quase nada.", g,
     verde=(f"Taxa PF em {_fmt(val('taxa_pf'),1)}% a.a. com Selic a {_fmt(val('selic'),2)}% — o spread é o personagem central deste deck.",
            "Corte de ~1 p.p. na Selic em dez meses; o estoque reprecifica com anos de defasagem."),
     nota="Fonte: BCB/SGS. Taxas médias das novas concessões (recursos livres + direcionados).")
 
 # 5 ─ inadimplência história
-g = linhas([
+g = jan1([
     {"pts": D["inad_pf_sfn"], "cor": S1, "w": 2.6, "rot": "inad PF (SFN)", "dec": 2},
 ], title="Inadimplência PF — SFN total (% da carteira, atraso >90d)", sub="SGS 21084 · série completa desde 2011",
     unit="%", H=405, ylim=(2.5, 6.2),
@@ -314,30 +361,30 @@ g = linhas([
          {"ym": "2023-05", "v": em("inad_pf_sfn", "2023-05"), "t": "2023: 4,35", "dy": -12},
          {"ym": "2021-06", "v": em("inad_pf_sfn", "2021-06"), "t": "mínima pós-pandemia: 2,91", "dy": 16},
          {"ym": ULT, "v": inad, "t": f"{_fmt(inad,2)} · recorde", "dy": -12, "anchor": "end", "cor": S1}])
-sec("parte 2 · a inadimplência recorde", "Nunca esteve tão alta.", viz(g),
+sec("parte 2 · a inadimplência recorde", "Nunca esteve tão alta.", g,
     verde=("5,81% — acima do pico de 2012 e 1,4 p.p. acima da recessão de 2016, com desemprego baixo.",
            "É inadimplência de pleno emprego: o motor é o preço da dívida, não a renda."),
     nota="Fonte: BCB/SGS 21084 (PF total: livre + direcionado). Metodologia atual começa em mar/2011.")
 
 # 6 ─ NPL em R$
-g = linhas([
+g = jan1([
     {"pts": D["npl_total"], "cor": S1, "w": 2.6, "rot": "NPL PF", "dec": 0},
 ], title="Estoque inadimplente PF em R$ bilhões (NPL = saldo × taxa)", sub="reconstrução própria sobre SGS · numerador do índice",
     H=410, ann=[{"ym": "2024-07", "v": em("npl_total", "2024-07"), "t": "24m: R$ 142 bi", "dy": -12},
                 {"ym": ULT, "v": npl_hoje, "t": f"R$ {_fmt(npl_hoje)} bi (+38% em 12m)", "dy": -12, "anchor": "end", "cor": S1}])
-sec("parte 2 · a inadimplência recorde", "O estoque quase dobrou em dois anos.", viz(g),
+sec("parte 2 · a inadimplência recorde", "O estoque quase dobrou em dois anos.", g,
     verde=("R$ 270 bi em atraso: +38% em 12 meses, +90% em 24 — contra carteira crescendo 11%.",
            "Sobre a carteira de um ano atrás, o índice seria 6,44%: o crescimento do denominador dilui 0,6 p.p."),
     nota="NPL_i = saldo_i × inadimplência_i, como o BCB constrói o numerador do índice (atraso >90d).")
 
 # 7 ─ total × core
-g = linhas([
+g = jan1([
     {"pts": D["inad_pf_sfn"], "cor": S1, "w": 2.6, "rot": "PF total", "dec": 2},
     {"pts": D["inad_core"], "cor": S2, "w": 2.2, "dash": "5 3", "rot": "core", "dec": 2},
 ], title="Total × core — inadimplência PF sem os dois choques (%)", sub="core = (NPL − rural − consignado privado) ÷ (saldo − rural − consignado privado)",
     unit="%", H=390, ylim=(2.5, 6.2),
     ann=[{"ym": "2012-05", "v": em("inad_core", "2012-05"), "t": "pico do core em 2012: 5,88", "dy": 18, "cor": S2}])
-sec("parte 2 · a inadimplência recorde", "Sem agro e consignado novo, ainda não é 2012.", viz(g),
+sec("parte 2 · a inadimplência recorde", "Sem agro e consignado novo, ainda não é 2012.", g,
     verde=(f"O core está em {_fmt(val('inad_core'),2)}% — maior nível desde 2012, abaixo do pico de 5,88%.",
            "O recorde do agregado = core pressionado + dois choques concentrados."),
     nota="Reconstrução própria sobre SGS (npl.py do dashboard-bcb). Consignado privado ≠ consignado INSS/público.")
@@ -358,22 +405,22 @@ sec("parte 2 · a inadimplência recorde", "Metade da alta vem de dois bolsos.",
     nota="Decomposição: Δinad = Σ [NPL_i(t)/S(t) − NPL_i(t−12)/S(t−12)] — soma exatamente o Δ do índice.")
 
 # 9 ─ rural
-ga = linhas([{"pts": D["inad_rural"], "cor": S1, "w": 2.4, "rot": "inad", "dec": 2}],
+ga = rlinhas([{"pts": D["inad_rural"], "cor": S1, "w": 2.4, "rot": "inad", "dec": 2}],
             W=480, H=330, title="Inadimplência rural PF (%)", sub="SGS 21148 · 4,47% → 8,79% em 12m", unit="%")
-gb = linhas([{"pts": D["npl_rural"], "cor": S2, "w": 2.4, "rot": "NPL", "dec": 0}],
+gb = rlinhas([{"pts": D["npl_rural"], "cor": S2, "w": 2.4, "rot": "NPL", "dec": 0}],
             W=480, H=330, title="NPL rural PF (R$ bi)", sub="+105% em 12m, carteira +4% (parada)")
-sec("parte 2 · a inadimplência recorde", "O campo quebrou primeiro: crise de solvência.", duo(viz(ga), viz(gb)),
+sec("parte 2 · a inadimplência recorde", "O campo quebrou primeiro: crise de solvência.", com_janelas([ga, gb], lambda v: duo(viz(v[0]), viz(v[1]))),
     verde=("Inadimplência dobrou em 12 meses com a carteira parada — os bancos já fecharam a torneira do agro.",
            "R$ 49 bi de NPL rural; ativo problemático no SCR a 10,3% diz que há mais atrás dos 90 dias."),
     nota="Fonte: BCB/SGS 20609/21148. Contexto: renda agrícola em queda e onda de RJs de produtores 2024-26.")
 
 # 10 ─ consignado privado
-ga = linhas([{"pts": D["saldo_consig"], "cor": S1, "w": 2.4, "rot": "saldo", "dec": 0}],
+ga = rlinhas([{"pts": D["saldo_consig"], "cor": S1, "w": 2.4, "rot": "saldo", "dec": 0}],
             W=480, H=330, title="Saldo consignado privado (R$ bi)", sub="SGS 20576 · R$ 40 bi (dez/24) → R$ 118 bi",
             ann=[{"ym": "2025-03", "v": em("saldo_consig", "2025-03"), "t": "Crédito do Trabalhador", "dy": -14, "dx": 6, "anchor": "end"}])
-gb = linhas([{"pts": D["inad_consig"], "cor": S2, "w": 2.4, "rot": "inad", "dec": 2}],
-            W=480, H=330, title="Inadimplência consignado privado (%)", sub="SGS 21116 · 6,17% → 10,03% em 12m", unit="%")
-sec("parte 2 · a inadimplência recorde", "A safra nova: o book triplicou — e já azeda.", duo(viz(ga), viz(gb)),
+gb = rlinhas([{"pts": D["inad_consig"], "cor": S2, "w": 2.4, "rot": "inad", "dec": 2}],
+            W=480, H=330, title="Inadimplência (%)", sub="SGS 21116 · consignado privado · 6,17% → 10,03% em 12m", unit="%")
+sec("parte 2 · a inadimplência recorde", "A safra nova: o book triplicou — e já azeda.", com_janelas([ga, gb], lambda v: duo(viz(v[0]), viz(v[1]))),
     verde=("10% de inadimplência num book em que a maior parte dos contratos nem completou um ano.",
            "NPL +283% em 12m. O denominador verde disfarça: as coortes maduras rodam bem acima de 10%. A garantia quebra na rotatividade CLT."),
     nota="Fonte: BCB/SGS. Programa Crédito do Trabalhador (eSocial) lançado em mar/2025; consignado INSS não incluído.")
@@ -382,9 +429,9 @@ sec("parte 2 · a inadimplência recorde", "A safra nova: o book triplicou — e
 minis = []
 for key, tit, cod in [("inad_rotativo", "Cartão rotativo", 21127), ("inad_cheque", "Cheque especial", 21113),
                       ("inad_pessoal", "Pessoal não consignado", 21114), ("inad_cartao", "Cartão total", 21129)]:
-    minis.append(viz(linhas([{"pts": D[key], "cor": S1, "w": 2.2, "rot": "", "dec": 1}],
-                            W=480, H=178, title=f"{tit} (%)", sub=f"SGS {cod} · hoje: {_fmt(val(key),1)}%", unit="%")))
-corpo = f'<div class="fwgrid" style="margin-top:6px"><div>{minis[0]}</div><div>{minis[1]}</div><div>{minis[2]}</div><div>{minis[3]}</div></div>'
+    minis.append(rlinhas([{"pts": D[key], "cor": S1, "w": 2.2, "rot": "", "dec": 1}],
+                         W=480, H=178, title=f"{tit} (%)", sub=f"SGS {cod} · hoje: {_fmt(val(key),1)}%", unit="%"))
+corpo = com_janelas(minis, lambda v: f'<div class="fwgrid" style="margin-top:6px"><div>{viz(v[0])}</div><div>{viz(v[1])}</div><div>{viz(v[2])}</div><div>{viz(v[3])}</div></div>')
 sec("parte 2 · a inadimplência recorde", "E a máquina cara de sempre segue moendo.", corpo,
     verde=("Rotativo: 65,9% do saldo em atraso >90d — recorde.",
            "O crédito caro do dia a dia sobe devagar, sem choque: pano de fundo estrutural."),
@@ -402,60 +449,60 @@ sec("parte 2 · a inadimplência recorde", "Não é a régua contábil: é fluxo
     nota="Fonte: SCR.data/BCB, agregação própria dos arquivos abertos (bucket Empréstimos PF).")
 
 # 13 ─ baixas trimestrais
-g = barras_tri(D["ifd_baixas_tri"], H=350, title="Baixas para prejuízo — sistema bancário (R$ bi por trimestre)",
+g = com_janelas([rbarras_tri(D["ifd_baixas_tri"], H=350, title="Baixas para prejuízo — sistema bancário (R$ bi por trimestre)",
                sub="reconstrução: baixas = despesa de PDD − Δ provisão · IF.data · * 1T25 indefinido (adoção da 4.966)",
-               destaque_ym="2026-06", nan_ym="2025-03")
-sec("parte 3 · baixas e provisões", "A onda de baixas chegou: R$ 77 bi num trimestre.", viz(g),
+               destaque_ym="2026-06", nan_ym="2025-03")], lambda v: viz(v[0]))
+sec("parte 3 · baixas e provisões", "A onda de baixas chegou: R$ 77 bi num trimestre.", g,
     verde=("Recorde nominal da série — 34% acima do trimestre anterior. Era a peça anunciada pela despesa de PDD.",
            "Baixa remove do numerador: daqui em diante ela segura o índice medido — sem melhorar o fluxo."),
     nota="Fonte: IF.data/BCB (conglomerados prudenciais), contas 78191/78192/78213 (2025+: 140205/140202/141840). Sistema total (PF+PJ).")
 
 # 14 ─ baixas em % (carteira e NPL)
-ga = linhas([
+ga = rlinhas([
     {"pts": D["ifd_pdd_pct"], "cor": S2, "w": 2.2, "rot": "despesa PDD", "dec": 1},
     {"pts": D["ifd_baixas_pct"], "cor": S1, "w": 2.4, "rot": "baixas", "dec": 1},
 ], W=480, H=330, title="% da carteira (anualizado)", sub="custo do risco × limpeza do balanço", unit="%")
-gb = linhas([
+gb = rlinhas([
     {"pts": D["ifd_baixas_pct_npl"], "cor": S1, "w": 2.4, "rot": "baixas ÷ NPL", "dec": 0},
-], W=480, H=330, title="Baixas em % do NPL anterior (anualizado)", sub="quanto do estoque podre é limpo por ano", unit="%")
-sec("parte 3 · baixas e provisões", "Formação bruta de ~5% da carteira ao ano.", duo(viz(ga), viz(gb)),
+], W=480, H=330, title="Baixas ÷ NPL anterior (%)", sub="anualizado · quanto do estoque podre é limpo por ano", unit="%")
+sec("parte 3 · baixas e provisões", "Formação bruta de ~5% da carteira ao ano.", com_janelas([ga, gb], lambda v: duo(viz(v[0]), viz(v[1]))),
     verde=("Mesmo baixando ~5% da carteira ao ano, o índice fez recorde — a formação de NPL cresceu ~40% num ano.",
            "O giro do estoque podre caiu de ~110% para ~88%/ano em 2025 — e a onda do 2T26 o devolveu a ~107%: a esteira reagiu."),
     nota="Baixas ÷ NPL usa inadimplência SFN (SGS 21082) sobre a carteira IF.data — aproximação; tendência sólida, nível indicativo.")
 
 # 15 ─ provisão e cobertura
-ga = linhas([{"pts": D["ifd_prov_pct"], "cor": S1, "w": 2.4, "rot": "provisão", "dec": 1}],
+ga = rlinhas([{"pts": D["ifd_prov_pct"], "cor": S1, "w": 2.4, "rot": "provisão", "dec": 1}],
             W=480, H=330, title="Provisão em % da carteira", sub="estoque de PDD/perda esperada · IF.data", unit="%",
-            ann=[{"ym": "2025-03", "v": em("ifd_prov_pct", "2025-03"), "t": "adoção 4.966", "dy": -12}])
-gb = linhas([{"pts": D["ifd_cobertura"], "cor": S2, "w": 2.4, "rot": "cobertura", "dec": 0}],
-            W=480, H=330, title="Cobertura: provisão ÷ NPL (%)", sub="colchão sobre o estoque em atraso", unit="%")
-sec("parte 3 · baixas e provisões", "Provisão recorde — e a cobertura ainda cai.", duo(viz(ga), viz(gb)),
+            ann=[{"ym": "2025-03", "v": em("ifd_prov_pct", "2025-03"), "t": "adoção 4.966", "dy": 3, "dx": -8, "anchor": "end"}])
+gb = rlinhas([{"pts": D["ifd_cobertura"], "cor": S2, "w": 2.4, "rot": "cobertura", "dec": 0}],
+            W=480, H=330, title="Cobertura (%)", sub="provisão ÷ NPL · colchão sobre o estoque em atraso", unit="%")
+sec("parte 3 · baixas e provisões", "Provisão recorde — e a cobertura ainda cai.", com_janelas([ga, gb], lambda v: duo(viz(v[0]), viz(v[1]))),
     verde=("7,7% da carteira provisionada, máxima da série — e a cobertura caiu de ~180% para ~170%.",
            "Nem provisionamento recorde acompanha a formação. Este é o elo que devolve o calote ao spread."),
     nota="Fonte: IF.data/BCB. Salto de 1T25 na provisão = ajuste de adoção da Res. 4.966 (contra patrimônio).")
 
 # 16 ─ comprometimento
-g = linhas([
+g = jan1([
     {"pts": D["comprometimento"], "cor": S1, "w": 2.6, "rot": "serviço total", "dec": 1},
     {"pts": D["comp_amort"], "cor": MU, "rot": "amortização", "dec": 1},
     {"pts": D["comp_juros"], "cor": S2, "dash": "4 3", "rot": "juros", "dec": 1},
 ], title="Comprometimento de renda das famílias (% da renda mensal)", sub="SGS 29034 e decomposição oficial 29263/29264 · dado até jun/26",
     unit="%", H=385,
     ann=[{"ym": D["comprometimento"][-1][0], "v": comp, "t": f"recorde: {_fmt(comp,1)}%", "dy": -12, "anchor": "end", "cor": S1}])
-sec("parte 4 · o tomador e o ciclo", "29% da renda já vai para a dívida.", viz(g),
+sec("parte 4 · o tomador e o ciclo", "29% da renda já vai para a dívida.", g,
     verde=("Recorde da série — e a fatia de juros (10,8%) sozinha supera o serviço TOTAL das famílias americanas.",
            "Dois terços do serviço são amortização (principal rolável); o que não rola é o juro."),
     nota="Fonte: BCB/SGS (metodologia própria do BCB; sai com ~2 meses de defasagem).")
 
 # 17 ─ atraso curto
-g = linhas([
+g = jan1([
     {"pts": D["inad_pf_livre"], "cor": MU, "rot": "inad livre (>90d)", "dec": 2},
     {"pts": D["atraso_curto"], "cor": S1, "w": 2.6, "rot": "atraso 15-90d", "dec": 2},
 ], title="O antecedente: atraso curto PF 15-90 dias × inadimplência (%)", sub="SGS 21005 e 21112 · o atraso curto lidera a inad em ~3 meses (r=0,69)",
     unit="%", H=390,
     ann=[{"ym": "2026-06", "v": em("atraso_curto", "2026-06"), "t": "pico: 6,23 (jun)", "dy": -12, "cor": S1},
          {"ym": "2016-09", "v": em("atraso_curto", "2016-09"), "t": "máx da série: 6,77", "dy": -12}])
-sec("parte 4 · o tomador e o ciclo", "O antecedente fez pico. A virada tem data provável.", viz(g),
+sec("parte 4 · o tomador e o ciclo", "O antecedente fez pico. A virada tem data provável.", g,
     verde=("Atraso curto: 6,23% em junho, 6,16% em julho — primeiro tique para baixo do ciclo.",
            "Se ago-set confirmarem, o pico do >90d fica para a virada 2026/27. É O indicador a vigiar dia 29/09."),
     nota="Correlação máxima entre Δ12m do atraso e Δ12m da inad livre com defasagem de 3 meses (ex-2020/21).")

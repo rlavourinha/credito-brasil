@@ -100,6 +100,14 @@
   @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .sl-output .out-msg { color: #81c784; } }
   :root[data-theme="dark"] .sl-output .out-msg { color: #81c784; }
   .sl-output .out-sub { font-size: 12.5px; color: var(--ink-2); flex: 1 1 260px; }
+  /* seletor de janela dos gráficos (tudo / 5 anos / 2 anos) */
+  .wingrp { position: relative; }
+  .winseg { position: absolute; top: 4px; right: 0; z-index: 2; display: inline-flex;
+    border: 1px solid var(--grid); border-radius: 8px; overflow: hidden; background: var(--surface-1); }
+  .winseg button { appearance: none; border: none; background: none; font: inherit; font-style: italic;
+    font-size: 11px; color: var(--ink-2); padding: 3px 11px; cursor: pointer; }
+  .winseg button.on { background: var(--s1); color: #fff; font-weight: 650; }
+  @media (max-width: 760px) { .winseg { position: static; margin: 6px 0 0; } }
 </style>
 </head>
 <body>
@@ -180,6 +188,16 @@
       c.addEventListener('click', function () { s.scrollIntoView({ behavior: 'smooth' }); });
     });
   })();
+  // seletor de janela: alterna a variante pré-renderizada dentro do grupo
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('.winseg button'); if (!b) return;
+    var grp = b.closest('.wingrp'); if (!grp) return;
+    var w = b.getAttribute('data-win');
+    grp.querySelectorAll('.winseg button').forEach(function (x) { x.classList.toggle('on', x === b); });
+    grp.querySelectorAll('.winvar').forEach(function (v) {
+      v.style.display = (v.getAttribute('data-win') === w) ? '' : 'none';
+    });
+  });
 </script>
 </body>
 </html>
